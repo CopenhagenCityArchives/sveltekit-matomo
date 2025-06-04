@@ -1,0 +1,61 @@
+<script>import { onMount } from "svelte";
+import { env } from "$env/dynamic/public";
+import { afterNavigate } from "$app/navigation";
+import { page } from "$app/stores";
+import { tracker } from "./tracker";
+export let url = env.PUBLIC_MATOMO_URL;
+export let siteId = +env.PUBLIC_MATOMO_SITE_ID;
+export let disableCookies = false;
+export let requireConsent = false;
+export let doNotTrack = false;
+export let enableCrossDomainLinking = false;
+export let domains = [];
+export let heartBeat = 15;
+export let linkTracking = null;
+async function initializeMatomo() {
+  const matomo = window.Matomo;
+  if (!matomo)
+    return;
+  const track = matomo.getTracker(`${url}/matomo.php`, siteId);
+  if (!track)
+    return;
+  if (disableCookies)
+    track.disableCookies();
+  if (requireConsent)
+    track.requireConsent();
+  if (doNotTrack)
+    track.setDoNotTrack(true);
+  if (heartBeat)
+    track.enableHeartBeatTimer(heartBeat);
+  if (enableCrossDomainLinking)
+    track.enableCrossDomainLinking();
+  if (domains.length)
+    track.setDomains(domains);
+  if (linkTracking !== null)
+    track.enableLinkTracking(linkTracking);
+  tracker.set(track);
+  track.setCustomDimension(1, $page.data.user ? "true" : "false");
+  track.setCustomUrl($page.url.href);
+  track.trackPageView();
+}
+onMount(async () => {
+  setTimeout(initializeMatomo, 100);
+});
+afterNavigate(async ({ to }) => {
+  if (!$tracker) {
+    await initializeMatomo();
+    return;
+  }
+  if (to?.url.href && $tracker) {
+    $tracker.setCustomDimension(1, $page.data.user ? "true" : "false");
+    $tracker.setCustomUrl(to.url.href);
+    $tracker.trackPageView();
+  }
+});
+</script>
+
+<svelte:head>
+  {#if url}
+    <script async defer src={`${url}/matomo.js`}></script>
+  {/if}
+</svelte:head>
